@@ -1,14 +1,17 @@
-import { useRef, useState } from "react";
+import { ChangeEvent, useRef, useState } from 'react';
 
-import { Slider } from "@/shared/ui/Slider/slider";
-import { Button } from "@/shared/ui/Button/button";
+import { Slider } from '@/shared/ui/Slider';
+import { Button } from '@/shared/ui/Button';
+import { Input } from '@/shared/ui/Input';
 
-import image from "@/shared/assets/189519-2.png";
+import { DownloadIcon } from '@radix-ui/react-icons';
 
 export const ImageEffectsPage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const originalImageData = useRef<ImageData | null>(null);
+
+  const [defaultValue, setDefaultValue] = useState<string>('');
 
   const [effects, setEffects] = useState({
     sepia: 0,
@@ -17,15 +20,19 @@ export const ImageEffectsPage = () => {
   });
 
   const loadImage = () => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current) {
+      return;
+    }
 
-    const ctx = canvasRef.current.getContext("2d");
+    const ctx = canvasRef.current.getContext('2d');
 
-    if (!ctx) return;
+    if (!ctx) {
+      return;
+    }
 
     const img = new Image();
 
-    img.src = image;
+    img.src = defaultValue;
 
     img.onload = () => {
       ctx.drawImage(
@@ -46,48 +53,50 @@ export const ImageEffectsPage = () => {
   };
 
   const applyEffects = () => {
-    if (!canvasRef.current || !originalImageData.current) return;
-    const ctx = canvasRef.current.getContext("2d");
-    if (!ctx) return;
+    if (!canvasRef.current || !originalImageData.current) {
+      return;
+    }
+
+    const ctx = canvasRef.current.getContext('2d');
+
+    if (!ctx) {
+      return;
+    }
 
     const canvas = canvasRef.current;
     const width = canvas.width;
     const height = canvas.height;
 
-    // Create temporary canvas for hyperbolic effect
-    const tempCanvas = document.createElement("canvas");
+    const tempCanvas = document.createElement('canvas');
+
     tempCanvas.width = width;
     tempCanvas.height = height;
-    const tempCtx = tempCanvas.getContext("2d");
-    if (!tempCtx) return;
+    const tempCtx = tempCanvas.getContext('2d');
 
-    // Draw original image to temp canvas
+    if (!tempCtx) {
+      return;
+    }
+
     tempCtx.putImageData(originalImageData.current, 0, 0);
 
-    // Create new ImageData for final result
     const resultImageData = ctx.createImageData(width, height);
 
-    const curvatureStrength = effects.curvature / 50; // Adjust strength factor
+    const curvatureStrength = effects.curvature / 50;
     const sepiaIntensity = effects.sepia / 100;
     const contrastFactor =
       (259 * (effects.contrast + 255)) / (255 * (259 - effects.contrast));
 
-    // Apply hyperbolic distortion
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        // Calculate normalized coordinates
         const nx = (x / width) * 2 - 1;
         const ny = (y / height) * 2 - 1;
 
-        // Apply hyperbolic transformation
         const r = Math.sqrt(nx * nx + ny * ny);
         const factor = 1 / (1 + curvatureStrength * r);
 
-        // Get source coordinates
         const sourceX = Math.floor(((nx * factor + 1) * width) / 2);
         const sourceY = Math.floor(((ny * factor + 1) * height) / 2);
 
-        // Bounds checking
         if (
           sourceX >= 0 &&
           sourceX < width &&
@@ -97,17 +106,15 @@ export const ImageEffectsPage = () => {
           const targetIndex = (y * width + x) * 4;
           const sourceIndex = (sourceY * width + sourceX) * 4;
 
-          // Get pixel data from original image
+          // eslint-disable-next-line no-shadow
           let r = originalImageData.current.data[sourceIndex];
           let g = originalImageData.current.data[sourceIndex];
           let b = originalImageData.current.data[sourceIndex];
 
-          // Apply contrast
           r = contrastFactor * (r - 128) + 128;
           g = contrastFactor * (g - 128) + 128;
           b = contrastFactor * (b - 128) + 128;
 
-          // Apply sepia
           const tr = 0.393 * r + 0.769 * g + 0.189 * b;
           const tg = 0.349 * r + 0.686 * g + 0.168 * b;
           const tb = 0.272 * r + 0.534 * g + 0.131 * b;
@@ -126,6 +133,39 @@ export const ImageEffectsPage = () => {
     ctx.putImageData(resultImageData, 0, 0);
   };
 
+  const uploadPicture = (e: ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) {
+      return;
+    }
+
+    const file = e.target.files[0];
+
+    if (file) {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setDefaultValue(reader.result);
+        }
+      };
+
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const downloadImage = () => {
+    if (!canvasRef.current) {
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    const link = document.createElement('a');
+
+    link.href = canvas.toDataURL('image/png');
+    link.download = 'modified-image.png';
+    link.click();
+  };
+
   const handleContrastChange = (value: number[]) => {
     setEffects((prev) => ({ ...prev, contrast: value[0] }));
     applyEffects();
@@ -142,16 +182,30 @@ export const ImageEffectsPage = () => {
   };
 
   return (
-    <div className="w-screen h-screen flex flex-col justify-center items-center">
-      <canvas
-        className="border"
-        width="800"
-        height="600"
-        ref={canvasRef}
-      ></canvas>
+    <div className="w-screen h-screen flex justify-center items-center gap-32">
+      <div className="relative order-2 flex justify-center items-center">
+        {imageLoaded && (
+          <div className="absolute opacity-0 transition-all hover:bg-black/30 hover:opacity-100 w-full h-full p-2 flex items-center justify-center">
+            <Button
+              variant="outline"
+              className="bg-transparent text-white hover:bg-inherit hover:text-white"
+              onClick={downloadImage}
+            >
+              <DownloadIcon />
+              Download Image
+            </Button>
+          </div>
+        )}
+        <canvas
+          className="border"
+          width="600"
+          height="600"
+          ref={canvasRef}
+        ></canvas>
+      </div>
       <div className="flex flex-col gap-7 mt-7 w-64">
-        <div>
-          <h1 className="font-bold">Sepia</h1>
+        <div className="flex flex-col gap-3">
+          <h1 className="font-bold">Sepia Effect</h1>
           <Slider
             onValueChange={handleSepiaChange}
             defaultValue={[0]}
@@ -159,8 +213,8 @@ export const ImageEffectsPage = () => {
             step={1}
           />
         </div>
-        <div>
-          <h1 className="font-bold">Contrast</h1>
+        <div className="flex flex-col gap-3">
+          <h1 className="font-bold">Contrast Effect</h1>
           <Slider
             onValueChange={handleContrastChange}
             defaultValue={[0]}
@@ -168,8 +222,8 @@ export const ImageEffectsPage = () => {
             step={1}
           />
         </div>
-        <div>
-          <h1 className="font-bold">Curvature</h1>
+        <div className="flex flex-col gap-3">
+          <h1 className="font-bold">Curvature Effect</h1>
           <Slider
             onValueChange={handleCurvatureChange}
             defaultValue={[0]}
@@ -177,7 +231,10 @@ export const ImageEffectsPage = () => {
             step={1}
           />
         </div>
-        {!imageLoaded && <Button onClick={loadImage}>Load Image</Button>}
+        <div className="cursor-pointer">
+          <Input onChange={uploadPicture} type="file" />
+        </div>
+        <Button onClick={loadImage}>Load Image</Button>
       </div>
     </div>
   );
